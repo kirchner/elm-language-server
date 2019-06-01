@@ -6,13 +6,10 @@ import util from "util";
 const readFile = util.promisify(fs.readFile);
 const globPromise = util.promisify(glob);
 
-import Parser, { Point, SyntaxNode, Tree } from "tree-sitter";
-import TreeSitterElm from "tree-sitter-elm";
+import Parser, { Point, SyntaxNode, Tree } from "web-tree-sitter";
 import {
   DidChangeTextDocumentParams,
-  DidCloseTextDocumentParams,
   IConnection,
-  TextDocumentIdentifier,
   VersionedTextDocumentIdentifier,
 } from "vscode-languageserver";
 import URI from "vscode-uri";
@@ -35,17 +32,13 @@ export class ASTProvider {
     elmWorkspace: URI,
     events: DocumentEvents,
     imports: Imports,
+    parser: Parser,
   ) {
     this.connection = connection;
     this.forest = forest;
     this.elmWorkspace = elmWorkspace;
     this.imports = imports;
-    this.parser = new Parser();
-    try {
-      this.parser.setLanguage(TreeSitterElm);
-    } catch (error) {
-      this.connection.console.info(error.toString());
-    }
+    this.parser = parser;
 
     events.on("change", this.handleChangeTextDocument);
 

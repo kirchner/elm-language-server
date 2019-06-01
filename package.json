@@ -34,8 +34,9 @@
     "typescript": "3.4.5"
   },
   "scripts": {
-    "compile": "tsc -b",
-    "watch": "tsc -b -w",
+    "copy-wasm": "cp ./src/tree-sitter-elm.wasm ./out/",
+    "compile": "npm run copy-wasm && tsc -p ./",
+    "watch": "npm run copy-wasm && tsc -watch -p ./",
     "lint": "tslint -p tsconfig.json",
     "tslint-check": "tslint-config-prettier-check ./tslint.json",
     "build-tree-sitter": "tree-sitter build-wasm ./node_modules/tree-sitter-elm"

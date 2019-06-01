@@ -1,5 +1,4 @@
-import Parser, { SyntaxNode, Tree } from "tree-sitter";
-import TreeSitterElm from "tree-sitter-elm";
+import Parser, { SyntaxNode, Tree } from "web-tree-sitter";
 import { IForest } from "./forest";
 import { Exposing, NodeType, TreeUtils } from "./util/treeUtils";
 
@@ -20,9 +19,8 @@ export class Imports implements IImports {
   public imports?: { [uri: string]: IImport[] } = {};
   private parser: Parser;
 
-  constructor() {
-    this.parser = new Parser();
-    this.parser.setLanguage(TreeSitterElm);
+  constructor(parser: Parser) {
+    this.parser = parser;
   }
 
   public updateImports(uri: string, tree: Tree, forest: IForest): void {

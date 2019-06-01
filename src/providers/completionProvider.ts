@@ -1,4 +1,3 @@
-import { Tree } from "tree-sitter";
 import {
   CompletionItem,
   CompletionItemKind,
@@ -8,6 +7,7 @@ import {
   MarkupKind,
   SymbolKind,
 } from "vscode-languageserver";
+import { Tree } from "web-tree-sitter";
 import { IForest } from "../forest";
 import { IImports } from "../imports";
 import { getEmptyTypes } from "../util/elmUtils";

@@ -5,6 +5,7 @@ import {
   InitializeResult,
 } from "vscode-languageserver";
 import URI from "vscode-uri";
+import Parser from "web-tree-sitter";
 import { CapabilityCalculator } from "./capabilityCalculator";
 import { Forest } from "./forest";
 import { Imports } from "./imports";
@@ -30,10 +31,14 @@ export interface ILanguageServer {
 export class Server implements ILanguageServer {
   private calculator: CapabilityCalculator;
 
-  constructor(connection: Connection, params: InitializeParams) {
+  constructor(
+    connection: Connection,
+    params: InitializeParams,
+    parser: Parser,
+  ) {
     this.calculator = new CapabilityCalculator(params.capabilities);
     const forest = new Forest();
-    const imports = new Imports();
+    const imports = new Imports(parser);
 
     const elmWorkspaceFallback =
       // Add a trailing slash if not present
@@ -55,6 +60,7 @@ export class Server implements ILanguageServer {
         elmWorkspace,
         imports,
         settings,
+        parser,
       );
     } else {
       connection.console.info(`No workspace.`);
@@ -73,10 +79,18 @@ export class Server implements ILanguageServer {
     elmWorkspace: URI,
     imports: Imports,
     settings: Settings,
+    parser: Parser,
   ): void {
     const documentEvents = new DocumentEvents(connection);
     // tslint:disable:no-unused-expression
-    new ASTProvider(connection, forest, elmWorkspace, documentEvents, imports);
+    new ASTProvider(
+      connection,
+      forest,
+      elmWorkspace,
+      documentEvents,
+      imports,
+      parser,
+    );
     new FoldingRangeProvider(connection, forest);
     new CompletionProvider(connection, forest, imports);
     new HoverProvider(connection, forest, imports);

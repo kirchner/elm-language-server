@@ -1,4 +1,4 @@
-import { SyntaxNode } from "tree-sitter";
+import { SyntaxNode } from "web-tree-sitter";
 
 export class HintHelper {
   public static createHint(node: SyntaxNode | undefined): string | undefined {
