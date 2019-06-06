@@ -12,6 +12,7 @@ import { IForest } from "../forest";
 import { IImports } from "../imports";
 import { References } from "../util/references";
 import { TreeUtils } from "../util/treeUtils";
+import URI from "vscode-uri";
 
 type CodeLensType = "exposed" | "referenceCounter";
 
@@ -57,6 +58,7 @@ export class CodeLensProvider {
       codeLensType: CodeLensType;
       references: Location[];
       exposed: boolean;
+      uri: string;
     } = codelens.data;
     if (data.codeLensType) {
       switch (data.codeLensType) {
@@ -67,12 +69,17 @@ export class CodeLensProvider {
 
           break;
         case "referenceCounter":
+          const bla: Location[] = data.references.map(a =>
+            Location.create(a.uri, Range.create(a.range.start, a.range.end)),
+          );
           codelens.command = Command.create(
             data.references.length === 1
               ? "1 reference"
               : `${data.references.length} references`,
             "editor.action.showReferences",
-            data.references,
+            URI.parse(data.uri),
+            param.range.start,
+            bla,
           );
 
           break;
@@ -152,6 +159,7 @@ export class CodeLensProvider {
       {
         codeLensType: "referenceCounter",
         references: refLocations,
+        uri,
       },
     );
   }
