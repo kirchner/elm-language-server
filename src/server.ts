@@ -232,7 +232,13 @@ export class Server implements ILanguageServer {
     new FoldingRangeProvider(connection, forest);
     new CompletionProvider(connection, forest, imports);
     new HoverProvider(connection, forest, imports);
-    new DiagnosticsProvider(connection, elmWorkspace, documentEvents, settings);
+    new DiagnosticsProvider(
+      connection,
+      elmWorkspace,
+      documentEvents,
+      forest,
+      settings,
+    );
     new DocumentFormattingProvider(
       connection,
       elmWorkspace,
