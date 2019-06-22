@@ -1,3 +1,4 @@
+import { spawnSync } from "child_process";
 import { SyntaxNode, Tree } from "tree-sitter";
 import {
   CompletionItem,
@@ -12,6 +13,14 @@ import { IImports } from "../imports";
 import { getEmptyTypes } from "../util/elmUtils";
 import { HintHelper } from "../util/hintHelper";
 import { TreeUtils } from "../util/treeUtils";
+
+const log = (text: string) => {
+  const access = require("fs").createWriteStream(
+    "/tmp/elm-language-server.debug.log",
+    { flags: "a" },
+  );
+  access.write(`${text}\n`);
+};
 
 export class CompletionProvider {
   private connection: IConnection;
@@ -34,6 +43,18 @@ export class CompletionProvider {
     const tree: Tree | undefined = this.forest.getTree(params.textDocument.uri);
 
     if (tree) {
+      const nodeBeforePosition = tree.rootNode.descendantForPosition({
+        column: params.position.character - 1,
+        row: params.position.line,
+      });
+      completions.push(
+        ...this.getTypeDirectedCompletions(
+          nodeBeforePosition,
+          tree,
+          params.textDocument.uri,
+        ),
+      );
+
       const nodeAtPosition = tree.rootNode.namedDescendantForPosition({
         column: params.position.character,
         row: params.position.line,
@@ -97,6 +118,153 @@ export class CompletionProvider {
     );
 
     return completions;
+  }
+
+  private findValueDeclaration(node: SyntaxNode): SyntaxNode | null {
+    if (node.type === "value_declaration") {
+      return node;
+    } else {
+      if (node.parent) {
+        return this.findValueDeclaration(node.parent);
+      } else {
+        return null;
+      }
+    }
+  }
+
+  private getTypeDirectedCompletions(
+    node: SyntaxNode,
+    tree: Tree,
+    uri: string,
+  ): CompletionItem[] {
+    const result: CompletionItem[] = [];
+
+    const valueDeclaration = this.findValueDeclaration(node);
+    if (valueDeclaration) {
+      const typeAnnotation = valueDeclaration.previousSibling;
+      if (typeAnnotation) {
+        const rawUnions: string[] = [];
+        const typeDeclarations = TreeUtils.findAllTypeDeclarations(tree);
+        if (typeDeclarations) {
+          typeDeclarations.forEach(declaration => {
+            rawUnions.push(declaration.text);
+          });
+        }
+        const typeAliasDeclarations = TreeUtils.findAllTypeAliasDeclarations(
+          tree,
+        );
+        if (typeAliasDeclarations) {
+          typeAliasDeclarations.forEach(aliasDeclaration => {
+            rawUnions.push(aliasDeclaration.text);
+          });
+        }
+
+        const rawValues: Array<Array<{ name: string; rawType: string }>> = [];
+
+        const rawLocalValues: Array<{ name: string; rawType: string }> = [];
+        const topLevelFunctions = TreeUtils.findAllTopLeverFunctionDeclarations(
+          tree,
+        );
+        if (topLevelFunctions) {
+          const declarations = topLevelFunctions.filter(
+            a =>
+              a.firstNamedChild !== null &&
+              a.firstNamedChild.type === "function_declaration_left" &&
+              a.firstNamedChild.firstNamedChild !== null &&
+              a.firstNamedChild.firstNamedChild.type ===
+                "lower_case_identifier",
+          );
+          for (const declaration of declarations) {
+            rawLocalValues.push({
+              name: declaration.firstNamedChild!.firstNamedChild!.text,
+              rawType: declaration.previousSibling!.child(2)!.text,
+            });
+          }
+        }
+        rawValues.push(rawLocalValues);
+
+        const rawImportedValues: Array<{ name: string; rawType: string }> = [];
+        if (this.imports.imports && this.imports.imports[uri]) {
+          const importList = this.imports.imports[uri];
+          importList.forEach(element => {
+            switch (element.type) {
+              case "Function":
+                if (element.node.previousSibling) {
+                  const rawType = element.node.previousSibling.child(2);
+                  if (rawType) {
+                    rawImportedValues.push({
+                      name: element.alias,
+                      rawType: rawType.text,
+                    });
+                  }
+                }
+                break;
+              case "UnionConstructor":
+                break;
+              case "Operator":
+                break;
+              case "Type":
+                break;
+              case "TypeAlias":
+                break;
+            }
+          });
+        }
+        rawValues.push(rawImportedValues);
+
+        const args = {
+          holeRange: [
+            node.startPosition.row - typeAnnotation.startPosition.row + 1,
+            node.startPosition.column + 1,
+            node.endPosition.row - typeAnnotation.startPosition.row + 1,
+            node.endPosition.column + 1,
+          ],
+          rawUnions,
+          rawValues,
+          src: `${typeAnnotation.text}\n${valueDeclaration.text}\n`,
+        };
+        log(
+          "========================================================================\n",
+        );
+        log(JSON.stringify(args));
+        log(
+          "\n------------------------------------------------------------------------\n",
+        );
+
+        const elmCompletions = spawnSync("elm-completions", [], {
+          encoding: "utf8",
+          input: JSON.stringify(args),
+        });
+
+        const exprs: string[] = JSON.parse(elmCompletions.stdout);
+        log(JSON.stringify(exprs));
+        log(
+          "\n========================================================================\n",
+        );
+
+        exprs.forEach(expr => {
+          if (expr.includes("\n")) {
+            const trimmedLines: string[] = [];
+            expr.split("\n").forEach(line => {
+              if (line.trim() !== "") {
+                trimmedLines.push(line.trim());
+              }
+            });
+
+            const snippet = expr.split("\n");
+            snippet.push("$0");
+
+            result.push(
+              this.createSnippet(`${trimmedLines.join(" ")}`, snippet),
+            );
+          } else {
+            result.push(this.createFunctionCompletion(expr, expr));
+          }
+        });
+      }
+    }
+
+    return result;
   }
 
   private getSameFileTopLevelCompletions(tree: Tree): CompletionItem[] {
